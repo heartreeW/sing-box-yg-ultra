@@ -8,6 +8,8 @@
 - `sb-multi-user.sh`: 多人账号管理脚本。
 - `install-sbuser.sh`: 将多人脚本安装为 `sbuser` 命令。
 
+完整操作文档见：[USAGE.md](USAGE.md)
+
 ## 已移除内容
 
 本分支不包含 Serv00、GitHub Actions 保活、网页保活、Cloudflare Worker 等功能文件。  
