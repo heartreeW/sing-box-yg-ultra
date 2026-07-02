@@ -81,7 +81,7 @@ sbuser remove alice
 
 - 本脚本适合 VPS 使用，不是流量统计/限速面板。
 - 删除用户可以让该用户的 UUID/密码失效，但不提供单人限速、流量统计、到期时间或设备数限制。
-- TUIC 自签证书链接会自动带 `pinnedPeerCertSha256`，避免新版 Xray 对 `allowInsecure` 的警告。
+- TUIC 自签证书链接会自动带 `pinnedPeerCertSha256`，并避免写入 `allowInsecure`。
 - 如果需要完整用户面板，建议使用 3x-ui、s-ui、Marzban 等项目。
 - 不要公开 `/etc/s-box/users/` 和 `/etc/s-box/multi-users.tsv`。
 

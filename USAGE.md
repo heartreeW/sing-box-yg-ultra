@@ -870,7 +870,7 @@ rc-service sing-box status
 Xray 将在 2026.8.1 禁用跳过证书验证 allowInsecure
 ```
 
-说明旧 TUIC 链接使用了跳过证书校验。新版脚本会在自签证书场景下自动给 TUIC 分享链接加入 `pinnedPeerCertSha256` 证书固定指纹，并把 `allowInsecure` 设为 `0`。
+说明旧 TUIC 链接使用了跳过证书校验。新版脚本会在自签证书场景下自动给 TUIC 分享链接加入 `pinnedPeerCertSha256` 证书固定指纹，并且不再写入 `allowInsecure`。
 
 更新脚本后重新刷新节点：
 

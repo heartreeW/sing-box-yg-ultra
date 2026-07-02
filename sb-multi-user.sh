@@ -536,8 +536,8 @@ build_links() {
       tuic_add="$server_ip"
       tuic_pin=$(sha256_pin)
       if [[ -n "$tuic_pin" ]]; then
-        tuic_insecure="0"
         tuic_pin_arg="&pinnedPeerCertSha256=$tuic_pin"
+        tuic_insecure=""
       else
         tuic_insecure="1"
         tuic_pin_arg=""
@@ -549,8 +549,13 @@ build_links() {
       tuic_pin_arg=""
     fi
     if [[ -n "$tuic_port" && -n "$tuic_add" && -n "$tuic_sni" ]]; then
-      printf 'tuic://%s:%s@%s:%s?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=%s&insecure=%s&allowInsecure=%s&allow_insecure=%s%s#tu5-%s\n' \
-        "$uuid" "$uuid" "$tuic_add" "$tuic_port" "$tuic_sni" "$tuic_insecure" "$tuic_insecure" "$tuic_insecure" "$tuic_pin_arg" "$label"
+      if [[ -n "$tuic_pin_arg" ]]; then
+        printf 'tuic://%s:%s@%s:%s?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=%s%s#tu5-%s\n' \
+          "$uuid" "$uuid" "$tuic_add" "$tuic_port" "$tuic_sni" "$tuic_pin_arg" "$label"
+      else
+        printf 'tuic://%s:%s@%s:%s?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=%s&insecure=%s&allowInsecure=%s&allow_insecure=%s#tu5-%s\n' \
+          "$uuid" "$uuid" "$tuic_add" "$tuic_port" "$tuic_sni" "$tuic_insecure" "$tuic_insecure" "$tuic_insecure" "$label"
+      fi
     fi
   fi
 
