@@ -75,6 +75,8 @@ sb -> 9 -> 1
 
 ## 4. 查看节点
 
+默认使用自签证书首次安装时，脚本会自动申请 Argo 临时隧道，并在安装结束时输出 Argo 节点。
+
 刷新并显示节点：
 
 ```text
@@ -148,7 +150,9 @@ sbuser remove alice
 
 ## 6. Argo
 
-Argo 需要 vmess-ws 关闭 TLS。
+默认自签证书安装会自动生成 Argo 临时节点。
+
+Argo 需要 vmess-ws 关闭 TLS；如果你安装时选择了 Acme 域名证书并开启 TLS，需要先关闭 TLS。
 
 关闭/切换 TLS：
 

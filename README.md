@@ -29,6 +29,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/heartreeW/sing-box-yg-ultra/ma
 sb
 ```
 
+默认使用自签证书安装时，脚本会自动申请 Argo 临时隧道，并在安装结束时输出 Argo 节点链接。
+
 ## 安装多人命令
 
 在 VPS 上拉取本仓库后运行：

@@ -2450,6 +2450,47 @@ chmod +x /etc/s-box/cloudflared
 fi
 }
 
+auto_cfargo_install(){
+if [[ ! -f /etc/s-box/sb.json ]]; then
+return
+fi
+vm_tls=$(sed 's://.*::g' /etc/s-box/sb.json | jq -r '.inbounds[1].tls.enabled' 2>/dev/null)
+if [[ "$vm_tls" != "false" ]]; then
+yellow "vmess-ws当前已开启TLS，首次安装跳过Argo临时隧道。需要Argo可进入 3-1 关闭TLS 后再进入 3-3 设置"
+return
+fi
+green "首次安装自动申请Argo临时隧道，请稍等……"
+cloudflaredargo
+vm_listen_port=$(sed 's://.*::g' /etc/s-box/sb.json | jq -r '.inbounds[1].listen_port' 2>/dev/null)
+ps -ef | grep "[l]ocalhost:${vm_listen_port}" | awk '{print $2}' | xargs kill 2>/dev/null
+nohup /etc/s-box/cloudflared tunnel --url http://localhost:${vm_listen_port} --edge-ip-version auto --no-autoupdate --protocol http2 > /etc/s-box/argo.log 2>&1 &
+sleep 20
+argo_host=$(cat /etc/s-box/argo.log 2>/dev/null | grep -a trycloudflare.com | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
+if [[ -n "$argo_host" && -n $(curl -sL https://${argo_host}/ -I | awk 'NR==1 && /404|400|503/') ]]; then
+argo=$argo_host
+if command -v apk >/dev/null 2>&1; then
+cat > /etc/local.d/alpineargo.start <<'EOF'
+#!/bin/bash
+sleep 10
+nohup /etc/s-box/cloudflared tunnel --url http://localhost:$(sed 's://.*::g' /etc/s-box/sb.json | jq -r '.inbounds[1].listen_port') --edge-ip-version auto --no-autoupdate --protocol http2 > /etc/s-box/argo.log 2>&1 &
+sleep 10
+printf "9\n1\n" | bash /usr/bin/sb > /dev/null 2>&1
+EOF
+chmod +x /etc/local.d/alpineargo.start
+rc-update add local default >/dev/null 2>&1
+else
+crontab -l 2>/dev/null > /tmp/crontab.tmp
+sed -i '/url http/d' /tmp/crontab.tmp
+echo '@reboot sleep 10 && /bin/bash -c "nohup /etc/s-box/cloudflared tunnel --url http://localhost:$(sed 's://.*::g' /etc/s-box/sb.json | jq -r '.inbounds[1].listen_port') --edge-ip-version auto --no-autoupdate --protocol http2 > /etc/s-box/argo.log 2>&1 & sleep 10 && printf \"9\n1\n\" | bash /usr/bin/sb > /dev/null 2>&1"' >> /tmp/crontab.tmp
+crontab /tmp/crontab.tmp >/dev/null 2>&1
+rm /tmp/crontab.tmp
+fi
+blue "Argo临时隧道申请成功，域名验证有效：$argo"
+else
+yellow "Argo临时域名暂未申请成功。普通节点已安装完成，可稍后进入 3-3 重新设置Argo"
+fi
+}
+
 cfargoym(){
 echo
 if [[ -f /etc/s-box/sbargotoken.log && -f /etc/s-box/sbargoym.log ]]; then
@@ -2611,9 +2652,10 @@ red "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 lnsb && blue "Sing-box-yg脚本安装成功，脚本快捷方式：sb" && cronsb
 echo
 wgcfgo
+auto_cfargo_install
 sbshare
 red "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-blue "可选择9，刷新并显示所有协议配置及分享链接"
+blue "已刷新并显示所有协议配置及分享链接；默认自签证书安装会自动包含Argo临时节点"
 red "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo
 }
