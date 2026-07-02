@@ -861,3 +861,21 @@ Alpine：
 ```bash
 rc-service sing-box status
 ```
+
+### 11. 电脑端使用 TUIC 提示 allowInsecure 警告
+
+如果客户端提示：
+
+```text
+Xray 将在 2026.8.1 禁用跳过证书验证 allowInsecure
+```
+
+说明旧 TUIC 链接使用了跳过证书校验。新版脚本会在自签证书场景下自动给 TUIC 分享链接加入 `pinnedPeerCertSha256` 证书固定指纹，并把 `allowInsecure` 设为 `0`。
+
+更新脚本后重新刷新节点：
+
+```text
+sb -> 9 -> 1
+```
+
+然后把新的 `Tuic-v5` 链接重新导入电脑客户端即可。

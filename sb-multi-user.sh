@@ -528,21 +528,29 @@ build_links() {
   fi
 
   if has_inbound "tuic5-sb"; then
-    local tuic_port tuic_key tuic_sni tuic_add tuic_insecure
+    local tuic_port tuic_key tuic_sni tuic_add tuic_insecure tuic_pin tuic_pin_arg
     tuic_port=$(jget "tuic5-sb" ".listen_port")
     tuic_key=$(jget "tuic5-sb" ".tls.key_path")
     if [[ "$tuic_key" == "$SBOX_DIR/private.key" ]]; then
       tuic_sni="www.bing.com"
       tuic_add="$server_ip"
-      tuic_insecure="1"
+      tuic_pin=$(sha256_pin)
+      if [[ -n "$tuic_pin" ]]; then
+        tuic_insecure="0"
+        tuic_pin_arg="&pinnedPeerCertSha256=$tuic_pin"
+      else
+        tuic_insecure="1"
+        tuic_pin_arg=""
+      fi
     else
       tuic_sni=$(ca_domain)
       tuic_add="$tuic_sni"
       tuic_insecure="0"
+      tuic_pin_arg=""
     fi
     if [[ -n "$tuic_port" && -n "$tuic_add" && -n "$tuic_sni" ]]; then
-      printf 'tuic://%s:%s@%s:%s?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=%s&insecure=%s&allowInsecure=%s&allow_insecure=%s#tu5-%s\n' \
-        "$uuid" "$uuid" "$tuic_add" "$tuic_port" "$tuic_sni" "$tuic_insecure" "$tuic_insecure" "$tuic_insecure" "$label"
+      printf 'tuic://%s:%s@%s:%s?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=%s&insecure=%s&allowInsecure=%s&allow_insecure=%s%s#tu5-%s\n' \
+        "$uuid" "$uuid" "$tuic_add" "$tuic_port" "$tuic_sni" "$tuic_insecure" "$tuic_insecure" "$tuic_insecure" "$tuic_pin_arg" "$label"
     fi
   fi
 

@@ -1055,6 +1055,7 @@ tu5_port=$(sed 's://.*::g' /etc/s-box/sb.json | jq -r '.inbounds[3].listen_port'
 ym=$(cat /root/ygkkkca/ca.log 2>/dev/null)
 tu5_sniname=$(sed 's://.*::g' /etc/s-box/sb.json | jq -r '.inbounds[3].tls.key_path')
 if [[ "$tu5_sniname" = '/etc/s-box/private.key' ]]; then
+TU5_SHA256=$(openssl x509 -in /etc/s-box/cert.pem -outform DER 2>/dev/null | sha256sum | awk '{print $1}')
 tu5_name=www.bing.com
 sb_tu5_ip=$server_ip
 cl_tu5_ip=$server_ipcl
@@ -1174,7 +1175,11 @@ echo
 restu5(){
 echo
 white "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+if [[ -n "$TU5_SHA256" ]]; then
+tuic5_link="tuic://$uuid:$uuid@$sb_tu5_ip:$tu5_port?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$tu5_name&insecure=0&allowInsecure=0&allow_insecure=0&pinnedPeerCertSha256=$TU5_SHA256#tu5-$hostname"
+else
 tuic5_link="tuic://$uuid:$uuid@$sb_tu5_ip:$tu5_port?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$tu5_name&insecure=$ins&allowInsecure=$ins&allow_insecure=$ins#tu5-$hostname"
+fi
 echo "$tuic5_link" > /etc/s-box/tuic5.txt
 red "🚀【 Tuic-v5 】节点信息如下：" && sleep 2
 echo
