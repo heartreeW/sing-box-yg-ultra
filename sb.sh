@@ -2365,6 +2365,74 @@ yellow "因vmess开启了tls，Argo隧道功能不可用" && sleep 2
 fi
 }
 
+adduser_vmargo(){
+echo
+if [[ ! -f /etc/s-box/sb.json ]]; then
+red "未检测到Sing-box配置文件，请先安装Sing-box" && sleep 2 && sb
+fi
+
+vm_tls=$(sed 's://.*::g' /etc/s-box/sb.json | jq -r '.inbounds[1].tls.enabled')
+if [[ "$vm_tls" = "true" ]]; then
+yellow "vmess-ws当前已开启TLS，Argo隧道功能不可用，请先在 3-1-2 关闭TLS后再试" && sleep 2 && sb
+fi
+
+if [[ ! -f /etc/s-box/argo.log && ! -f /etc/s-box/sbargoym.log ]]; then
+yellow "未检测到已配置的Argo隧道（临时或固定），请先在 3-3 设置好Argo隧道后再试" && sleep 2 && sb
+fi
+
+echo
+readp "输入新用户UUID（留空自动生成新的）：" newuuid
+[[ -z "$newuuid" ]] && newuuid=$(/etc/s-box/sing-box generate uuid)
+readp "输入新用户备注名（如 phone2，留空默认user）：" newlabel
+[[ -z "$newlabel" ]] && newlabel="user"
+
+exists=$(jq -r --arg u "$newuuid" '.inbounds[1].users[] | select(.uuid==$u) | .uuid' /etc/s-box/sb.json)
+if [[ -z "$exists" ]]; then
+tmpjson=$(mktemp)
+jq --arg u "$newuuid" '.inbounds[1].users += [{"uuid": $u, "alterId": 0}]' /etc/s-box/sb.json > "$tmpjson" && mv "$tmpjson" /etc/s-box/sb.json
+restartsb > /dev/null 2>&1
+green "已将新用户加入vmess-ws用户列表，Sing-box已重启生效"
+else
+yellow "该UUID已存在于vmess-ws用户列表中，跳过添加步骤"
+fi
+
+ws_path=$(sed 's://.*::g' /etc/s-box/sb.json | jq -r '.inbounds[1].transport.path')
+if [[ -f /etc/s-box/cfvmadd_argo.txt ]]; then
+vmadd_argo=$(cat /etc/s-box/cfvmadd_argo.txt)
+else
+vmadd_argo=cloudflare-ech.com
+fi
+
+if [[ -f /etc/s-box/sbargoym.log ]]; then
+argohost=$(cat /etc/s-box/sbargoym.log)
+elif [[ -f /etc/s-box/argo.log ]]; then
+argohost=$(cat /etc/s-box/argo.log 2>/dev/null | grep -a trycloudflare.com | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
+fi
+
+if [[ -z "$argohost" ]]; then
+red "未能读取到Argo隧道域名，请确认隧道正在正常运行（可选择9刷新查看节点确认）" && sleep 2 && sb
+fi
+
+newlink="vmess://$(echo '{"add":"'$vmadd_argo'","aid":"0","host":"'$argohost'","id":"'$newuuid'","net":"ws","path":"'$ws_path'","port":"443","ps":"'vm-argo-$hostname-$newlabel'","tls":"tls","sni":"'$argohost'","fp":"chrome","type":"none","v":"2"}' | base64 -w 0)"
+
+echo
+white "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+red "🚀【 新用户 $newlabel 的 vm-argo 节点 】" && sleep 1
+echo
+echo "UUID：$newuuid"
+echo
+echo "分享链接【v2rayn、v2rayng、nekobox、小火箭shadowrocket】"
+echo -e "${yellow}${newlink}${plain}"
+echo "$newlink" > /etc/s-box/vm_argo_user_$newlabel.txt
+echo
+echo "二维码："
+qrencode -o - -t ANSIUTF8 "$newlink"
+white "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo
+readp "按回车返回主菜单..." tmp
+sb
+}
+
 cloudflaredargo(){
 if [ ! -e /etc/s-box/cloudflared ]; then
 case $(uname -m) in
@@ -3060,7 +3128,7 @@ changeserv(){
 sbactive
 echo
 green "Sing-box配置变更选择如下:"
-readp "1：更换Reality域名伪装地址、切换自签证书与Acme域名证书、开关TLS\n2：更换全协议UUID(密码)、Vmess-Path路径\n3：设置Argo临时隧道、固定隧道\n4：切换IPV4或IPV6的代理优先级 (仅 1.10.7 内核可用)\n5：设置Telegram推送节点通知\n6：更换Warp-wireguard出站账户\n7：设置Gitlab订阅分享链接\n8：设置本地IP订阅分享链接\n9：设置所有Vmess节点的CDN优选地址\n0：返回上层\n请选择【0-9】：" menu
+readp "1：更换Reality域名伪装地址、切换自签证书与Acme域名证书、开关TLS\n2：更换全协议UUID(密码)、Vmess-Path路径\n3：设置Argo临时隧道、固定隧道\n4：切换IPV4或IPV6的代理优先级 (仅 1.10.7 内核可用)\n5：设置Telegram推送节点通知\n6：更换Warp-wireguard出站账户\n7：设置Gitlab订阅分享链接\n8：设置本地IP订阅分享链接\n9：设置所有Vmess节点的CDN优选地址\n10：新增vm-argo用户(独立UUID，共用同一条隧道)\n0：返回上层\n请选择【0-10】：" menu
 if [ "$menu" = "1" ];then
 changeym
 elif [ "$menu" = "2" ];then
@@ -3079,6 +3147,8 @@ elif [ "$menu" = "8" ];then
 ipsub
 elif [ "$menu" = "9" ];then
 vmesscfadd
+elif [ "$menu" = "10" ];then
+adduser_vmargo
 else 
 sb
 fi
