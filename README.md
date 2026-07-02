@@ -65,6 +65,12 @@ sbuser remove alice
 /etc/s-box/users/<name>.txt
 ```
 
+如果已经通过 `sb` 配置好 Argo 隧道，并且 vmess-ws 关闭 TLS，`sbuser add` 和 `sbuser links` 会自动额外生成该用户的 vm-argo 链接，并保存到：
+
+```text
+/etc/s-box/vm_argo_user_<name>.txt
+```
+
 每个用户可以单独删除：
 
 ```bash

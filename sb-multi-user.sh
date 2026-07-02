@@ -344,6 +344,43 @@ read_first() {
   fi
 }
 
+argo_host() {
+  local host
+  host=$(read_first "$SBOX_DIR/sbargoym.log" 2>/dev/null || true)
+  if [[ -z "$host" && -s "$SBOX_DIR/argo.log" ]]; then
+    host=$(grep -a 'trycloudflare.com' "$SBOX_DIR/argo.log" 2>/dev/null | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}' || true)
+  fi
+  printf '%s\n' "$host"
+}
+
+vm_argo_link() {
+  local name="$1"
+  local uuid="$2"
+  local tls_enabled
+  local ws_path
+  local host
+  local add
+  local label
+  local safe
+  local host_name
+
+  has_inbound "vmess-sb" || return 1
+  tls_enabled=$(jq -r '.inbounds[]? | select(.tag == "vmess-sb") | .tls.enabled' "$SBOX_DIR/sb.json" 2>/dev/null | head -n 1)
+  [[ "$tls_enabled" == "false" ]] || return 1
+  ws_path=$(jget "vmess-sb" ".transport.path")
+  [[ -n "$ws_path" ]] || return 1
+  host=$(argo_host)
+  [[ -n "$host" ]] || return 1
+  add="cloudflare-ech.com"
+  if [[ -s "$SBOX_DIR/cfvmadd_argo.txt" ]]; then
+    add=$(read_first "$SBOX_DIR/cfvmadd_argo.txt" || printf 'cloudflare-ech.com')
+  fi
+  host_name=$(hostname 2>/dev/null || printf 'sbox')
+  safe=$(safe_name "$name" "$uuid")
+  label="$host_name-$safe"
+  vmess_link "$add" "$host" "$uuid" "$ws_path" "443" "vm-argo-$label" "tls" "$host"
+}
+
 server_ip_main() {
   local ip
   ip=$(read_first "$SBOX_DIR/server_ip.log" || true)
@@ -466,6 +503,7 @@ build_links() {
     if [[ -n "$vm_port" && -n "$ws_path" && -n "$vm_add" ]]; then
       vmess_link "$vm_add" "$vm_host" "$uuid" "$ws_path" "$vm_port" "vm-ws-$label" "$vm_tls" "$vm_sni"
     fi
+    vm_argo_link "$name" "$uuid" || true
   fi
 
   if has_inbound "hy2-sb"; then
@@ -533,12 +571,21 @@ emit_links() {
   local uuid="$2"
   local safe
   local outfile
+  local argo_outfile
+  local argo_link
   safe=$(safe_name "$name" "$uuid")
   if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
     mkdir -p "$USER_DIR"
     outfile="$USER_DIR/$safe.txt"
     build_links "$name" "$uuid" | tee "$outfile"
     info "Saved links to $outfile"
+    argo_link=$(vm_argo_link "$name" "$uuid" || true)
+    if [[ -n "$argo_link" ]]; then
+      argo_outfile="$SBOX_DIR/vm_argo_user_$safe.txt"
+      printf '%s\n' "$argo_link" >"$argo_outfile"
+      chmod 600 "$argo_outfile" 2>/dev/null || true
+      info "Saved vm-argo link to $argo_outfile"
+    fi
   else
     build_links "$name" "$uuid"
   fi
@@ -614,7 +661,7 @@ cmd_add() {
 cmd_remove() {
   local backup_dir
   local removed_file
-  local target uuid
+  local target uuid name safe
 
   need_root "$@"
   require_cmd jq
@@ -630,12 +677,14 @@ cmd_remove() {
       rm -f "$removed_file"
       die "Unknown user or UUID: $target"
     fi
-    printf '%s\t%s\n' "$target" "$uuid" >>"$removed_file"
+    name=$(registry_lookup_name "$uuid" || true)
+    [[ -n "$name" ]] || name="$target"
+    printf '%s\t%s\t%s\n' "$target" "$uuid" "$name" >>"$removed_file"
   done
 
   backup_dir=$(backup_configs)
 
-  while IFS=$'\t' read -r target uuid; do
+  while IFS=$'\t' read -r target uuid name; do
     if ! remove_uuid_from_configs "$uuid"; then
       restore_configs "$backup_dir"
       rm -f "$removed_file"
@@ -649,14 +698,16 @@ cmd_remove() {
     die "sing-box config check failed. Restored backup: $backup_dir"
   fi
 
-  while IFS=$'\t' read -r target uuid; do
+  while IFS=$'\t' read -r target uuid name; do
     remove_registry_uuid "$uuid"
   done <"$removed_file"
 
   restart_service || true
 
-  while IFS=$'\t' read -r target uuid; do
+  while IFS=$'\t' read -r target uuid name; do
     info "Removed credential for $target: $uuid"
+    safe=$(safe_name "$name" "$uuid")
+    rm -f "$USER_DIR/$safe.txt" "$SBOX_DIR/vm_argo_user_$safe.txt"
   done <"$removed_file"
 
   rm -f "$removed_file"
